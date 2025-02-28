@@ -13,32 +13,52 @@ n <- 1000
 X1 <- rnorm(n)
 X2 <- rnorm(n)
 W <- rbinom(n, 1, plogis(0.5 * X1 - 0.25 * X2))
-Y <- 2 * W + X1 + X2 + rnorm(n)
+Y <- 3 + 2 * W + X1 + X2 + rnorm(n)
+data = data.frame(Y, W, X1, X2)
+
+head(data)
 
 ################
-################ Inverse Propensity Score Weights
+################ Utility Functions
 ################
 
-ps_model <- glm(W ~ X1 + X2, family = binomial)
-ps <- predict(ps_model, type = "response")
-ips_weights <- ifelse(W == 1, 1 / ps, 1 / (1 - ps))
+compute_weights <- function(method) {
+  weightit(W ~ X1 + X2, method = method, data = data)$weights
+}
+
+compute_ate <- function(weights) {
+  weighted.mean(Y[W == 1], weights = weights[W == 1]) - 
+    weighted.mean(Y[W == 0], weights = weights[W == 0])
+}
 
 ################
-################ Covariate Balancing Weights
+################ Generate Weights
 ################
 
-cb_weights <- weightit(W ~ X1 + X2, method = "cbps", data = data.frame(W, X1, X2))$weights
+ips_weights <- compute_weights("glm")
+ebal_weights <- compute_weights("ebal")
+cbps_weights <- compute_weights("cbps")
+
+summary(ips_weights)
+summary(ebal_weights)
+summary(cbps_weights)
+
+cor(ips_weights, ebal_weights)
+cor(ips_weights, cbps_weights)
+cor(cbps_weights, ebal_weights)
 
 ################
 ################ ATE Estimation
 ################
 
-ate_ips <- weighted.mean(Y, weights = ips_weights)
-ate_cb <- weighted.mean(Y, weights = cb_weights)
+ips_ate <- compute_ate(ips_weights)
+ebal_ate <- compute_ate(ebal_weights)
+cbps_ate <- compute_ate(cbps_weights)
 
 ################
 ################ Print Results
 ################
 
-cat("ATE (IPS Weights):", ate_ips, "\n")
-cat("ATE (CB Weights):", ate_cb, "\n")
+cat("ATE (IPS Weights):", ips_ate, "\n")
+cat("ATE (Entropy Balance Weights):", ebal_ate, "\n")
+cat("ATE (CBPS Weights):", cbps_ate, "\n")
